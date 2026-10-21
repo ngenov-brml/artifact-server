@@ -161,6 +161,19 @@ test.describe("Artifact Server frontend MVP", () => {
       await expect(preview.locator("#review-native-action"))
         .toHaveAttribute("data-clicked", "true");
       await expect(reviewFrame.getByPlaceholder("Add a comment...")).toHaveCount(0);
+      const selectableText = await preview.locator("#review-theme-target").boundingBox();
+      expect(selectableText).not.toBeNull();
+      if (selectableText === null) {
+        throw new Error("Review preview text geometry was unavailable.");
+      }
+      const selectionY = selectableText.y + selectableText.height / 2;
+      await fixture.page.mouse.move(selectableText.x + 1, selectionY);
+      await fixture.page.mouse.down();
+      await fixture.page.mouse.move(selectableText.x + 80, selectionY, {steps: 4});
+      await fixture.page.mouse.up();
+      await expect(reviewFrame.getByRole("button", {name: "Copy"})).toBeVisible();
+      await expect(reviewFrame.getByPlaceholder("Add a comment...")).toHaveCount(0);
+      await reviewFrame.getByRole("button", {name: "Cancel"}).click();
       await interactMode.click();
       await expect(annotateMode).toHaveAttribute("aria-pressed", "true");
 

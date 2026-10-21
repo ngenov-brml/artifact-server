@@ -200,7 +200,7 @@ export function ReviewFrame(): React.ReactNode {
       fullViewport
       hideControls
       inputMethod="pinpoint"
-      mode="comment"
+      mode="selection"
       onAddAnnotation={handleAdd}
       onAnnotateModeExit={session.supportsAnnotateMode
         ? () => requestAnnotateMode(false)
