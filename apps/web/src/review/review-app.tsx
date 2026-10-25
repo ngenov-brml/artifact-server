@@ -376,10 +376,14 @@ export function ReviewApp() {
     setSessionState("loading");
     setError(null);
     try {
-      const [loadedAccessContext, initialSession] = await Promise.all([
+      const [loadedAccessContext, initialSession, initialProjects] = await Promise.all([
         api.accessContext(),
         api.session().then(
           (value) => ({kind: "authenticated" as const, value}),
+          (cause: unknown) => ({cause, kind: "failed" as const}),
+        ),
+        api.projects().then(
+          (value) => ({kind: "loaded" as const, value}),
           (cause: unknown) => ({cause, kind: "failed" as const}),
         ),
       ]);
@@ -397,7 +401,10 @@ export function ReviewApp() {
       } else {
         throw initialSession.cause;
       }
-      const loadedProjects = await api.projects();
+      const loadedProjects = initialSession.kind === "authenticated"
+        && initialProjects.kind === "loaded"
+        ? initialProjects.value
+        : await api.projects();
       setSession(loadedSession);
       setProjects(loadedProjects);
       setSessionState("ready");
@@ -795,28 +802,39 @@ function ArtifactReview({
     setComparison(null);
     setDetailLoading(true);
     setDetailError(null);
+    const showDetailError = (cause: Error): void => {
+      setDetails(null);
+      setVersions([]);
+      setSelectedVersion(null);
+      setDetailError(cause);
+    };
     void (async () => {
       try {
-        const [loadedDetails, loadedVersions] = await Promise.all([
-          api.artifact(projectId, selectedArtifactId),
-          api.versions(projectId, selectedArtifactId),
-        ]);
+        const loadedDetails = await api.artifact(projectId, selectedArtifactId);
         if (!current) return;
         setDetails(loadedDetails);
-        setVersions(loadedVersions);
         setSelectedVersionId((selected) => {
           return selected ?? loadedDetails.current.version.id;
         });
       } catch (caught) {
         if (!current) return;
-        setDetails(null);
-        setVersions([]);
-        setSelectedVersion(null);
-        setDetailError(
+        showDetailError(
           caught instanceof Error ? caught : new Error("Artifact details failed."),
         );
       } finally {
         if (current) setDetailLoading(false);
+      }
+    })();
+    // The preview needs only the artifact; the version list arrives on its own.
+    void (async () => {
+      try {
+        const loadedVersions = await api.versions(projectId, selectedArtifactId);
+        if (current) setVersions(loadedVersions);
+      } catch (caught) {
+        if (!current) return;
+        showDetailError(
+          caught instanceof Error ? caught : new Error("Artifact details failed."),
+        );
       }
     })();
     return () => {

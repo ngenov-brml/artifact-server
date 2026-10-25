@@ -1,4 +1,4 @@
-import {expect, test} from "@playwright/test";
+import {expect, test, type Route} from "@playwright/test";
 
 import {publishNew} from "../support/publishing.js";
 import {
@@ -37,6 +37,24 @@ function paintedText(fixture: BrowserFixture) {
     .locator("#painted");
 }
 
+const notReleased = (): void => {};
+
+/** Hold every matching request until the returned release function runs. */
+async function holdRequests(
+  fixture: BrowserFixture,
+  url: RegExp,
+): Promise<() => void> {
+  let release = notReleased;
+  const released = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await fixture.page.route(url, async (route: Route) => {
+    await released;
+    await route.continue();
+  });
+  return release;
+}
+
 test.describe("Review open speed", () => {
   test("a one-file artifact opens without a preview lease", async ({browser}) => {
     const fixture = await startBrowserFixture(browser);
@@ -51,6 +69,58 @@ test.describe("Review open speed", () => {
 
       await expect(paintedText(fixture)).toHaveText("artifact painted");
       expect(leaseRequests).toEqual([]);
+    } finally {
+      await stopBrowserFixture(fixture);
+    }
+  });
+
+  test("projects load in the same wave as the session", async ({browser}) => {
+    const fixture = await startBrowserFixture(browser);
+    try {
+      const reviewUrl = await openOneFileReview(fixture, "open-speed-boot-wave");
+      const release = await holdRequests(fixture, /\/api\/v1\/session$/u);
+      try {
+        const projects = fixture.page.waitForRequest(/\/api\/v1\/projects$/u, {timeout: 5_000});
+        await fixture.page.goto(reviewUrl, {waitUntil: "commit"});
+        await projects;
+      } finally {
+        release();
+      }
+      await expect(paintedText(fixture)).toHaveText("artifact painted");
+    } finally {
+      await stopBrowserFixture(fixture);
+    }
+  });
+
+  test("the artifact shows while the version list is still loading", async ({browser}) => {
+    const fixture = await startBrowserFixture(browser);
+    try {
+      const reviewUrl = await openOneFileReview(fixture, "open-speed-version-list");
+      const release = await holdRequests(fixture, /\/api\/v1\/artifacts\/[^/]+\/versions\?/u);
+      try {
+        await fixture.page.goto(reviewUrl);
+        await expect(paintedText(fixture)).toHaveText("artifact painted");
+      } finally {
+        release();
+      }
+    } finally {
+      await stopBrowserFixture(fixture);
+    }
+  });
+
+  test("the review frame loads while the artifact HTML is still loading", async ({browser}) => {
+    const fixture = await startBrowserFixture(browser);
+    try {
+      const reviewUrl = await openOneFileReview(fixture, "open-speed-frame-early");
+      const release = await holdRequests(fixture, /\/versions\/[^/]+\/file\?/u);
+      try {
+        const frame = fixture.page.waitForRequest(/\/review-frame$/u, {timeout: 5_000});
+        await fixture.page.goto(reviewUrl, {waitUntil: "commit"});
+        await frame;
+      } finally {
+        release();
+      }
+      await expect(paintedText(fixture)).toHaveText("artifact painted");
     } finally {
       await stopBrowserFixture(fixture);
     }

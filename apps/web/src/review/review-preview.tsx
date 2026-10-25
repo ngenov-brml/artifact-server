@@ -380,14 +380,6 @@ function HtmlPreview({
     });
   }, [postToFrame, selectedThreadId]);
 
-  if (loading) {
-    return (
-      <PreviewState
-        description={`Reading ${entry.path} from the selected version.`}
-        title="Loading preview"
-      />
-    );
-  }
   if (error !== null) {
     return (
       <TerminalPreviewState
@@ -400,13 +392,23 @@ function HtmlPreview({
       />
     );
   }
+  // The frame mounts at once so its code boots while the HTML loads.
   return (
-    <iframe
-      className="as-artifact-frame"
-      ref={frameRef}
-      src="/review-frame"
-      title={`${version.version.artifactId} version ${version.version.number}`}
-    />
+    <>
+      {loading ? (
+        <PreviewState
+          description={`Reading ${entry.path} from the selected version.`}
+          title="Loading preview"
+        />
+      ) : null}
+      <iframe
+        className="as-artifact-frame"
+        hidden={loading}
+        ref={frameRef}
+        src="/review-frame"
+        title={`${version.version.artifactId} version ${version.version.number}`}
+      />
+    </>
   );
 }
 

@@ -2134,6 +2134,10 @@ select:focus-visible {
   width: 100%;
 }
 
+.as-artifact-frame[hidden] {
+  display: none;
+}
+
 .as-preview-error {
   background: color-mix(in oklab, var(--as-love) 15%, var(--as-surface));
   border-bottom: 1px solid color-mix(in oklab, var(--as-love) 34%, transparent);
