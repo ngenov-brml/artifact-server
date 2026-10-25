@@ -584,6 +584,7 @@ export async function migrateD1(
   database: D1Database,
   installationId: string,
 ): Promise<void> {
+  if (await storedSchemaVersion(database) === requiredD1SchemaVersion) return;
   const statements = schemaSql.split(";")
     .map((statement) => statement.trim())
     .filter((statement) => statement !== "")
@@ -636,6 +637,17 @@ export async function migrateD1(
       new Date(0).toISOString(),
     ),
   ]);
+}
+
+async function storedSchemaVersion(database: D1Database): Promise<number | null> {
+  try {
+    return await database.prepare(`
+      SELECT version FROM artifact_server_schema WHERE component = 'runtime'
+    `).first<number>("version");
+  } catch {
+    // A new database has no schema table yet; the full migration creates it.
+    return null;
+  }
 }
 
 async function addArtifactSearchNameIfMissing(
