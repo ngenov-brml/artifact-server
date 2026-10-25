@@ -244,14 +244,17 @@ function HtmlPreview({
             version.version.id,
             entry.path,
           ),
-          api.previewLease(projectId, artifactId, version.version.id).then(
-            (lease) => {
-              if (lease.versionId !== version.version.id) {
-                throw new Error("The preview lease resolved a different version.");
-              }
-              return lease.baseUrl;
-            },
-          ),
+          // A one-file version has no sub-resources to lease; its own content origin keeps relative URLs inside the version.
+          version.manifest.entries.length === 1
+            ? version.links.version
+            : api.previewLease(projectId, artifactId, version.version.id).then(
+              (lease) => {
+                if (lease.versionId !== version.version.id) {
+                  throw new Error("The preview lease resolved a different version.");
+                }
+                return lease.baseUrl;
+              },
+            ),
         ]);
         if (current) {
           setPreviewDocument({
